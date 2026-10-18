@@ -293,7 +293,7 @@
         }
 
         .container {
-            display: none;
+            display: block;
             animation: fadeIn 0.4s ease forwards;
         }
 
@@ -330,17 +330,17 @@
             width: 100%;
             margin-bottom: 16px;
             gap: 2px;
-            overflow-x: auto;
+            overflow: hidden;
         }
 
         .view-tab {
             flex: 1;
-            padding: 8px 10px;
+            padding: 8px 6px;
             border-radius: 999px;
             border: none;
             background: transparent;
             color: var(--text-muted);
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -469,15 +469,16 @@
             margin-top: 14px;
             width: 100%;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .ctrl-btn {
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid var(--border-color);
             color: var(--text-main);
-            padding: 6px 18px;
+            padding: 6px 16px;
             border-radius: 999px;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -837,9 +838,10 @@
                         </div>
                     </div>
 
-                    <!-- Rotation Control for 3D View -->
+                    <!-- Rotation & Animation Controls Bar -->
                     <div class="controls-bar" id="controlsBar">
-                        <button class="ctrl-btn active" id="btnRotate" onclick="toggleRotate()"><i class="fas fa-sync"></i> Orbit / Auto-Rotate</button>
+                        <button class="ctrl-btn active" id="btnRotate" onclick="toggleRotate()"><i class="fas fa-sync"></i> Rotate</button>
+                        <button class="ctrl-btn" id="btnAnimate" onclick="toggleAnimation()"><i class="fas fa-walking"></i> Walk</button>
                     </div>
 
                     <div class="action-btn-group">
@@ -863,13 +865,13 @@
                         <div class="data-list">
                             <div class="data-row">
                                 <span class="data-label">Account Status</span>
-                                <span id="availabilityText" class="data-value" style="color:var(--danger)">Registered</span>
+                                <span id="availabilityText" class="data-value" style="color:var(--danger)">Default Skin</span>
                             </div>
 
                             <div class="data-row">
                                 <span class="data-label">Full UUID</span>
                                 <div class="data-value">
-                                    <span id="uuidDisplay">...</span>
+                                    <span id="uuidDisplay">N/A</span>
                                     <i class="fas fa-copy copy-icon" onclick="copyToClipboard('uuidDisplay')" title="Copy Formatted UUID"></i>
                                 </div>
                             </div>
@@ -877,7 +879,7 @@
                             <div class="data-row">
                                 <span class="data-label">Raw UUID</span>
                                 <div class="data-value">
-                                    <span id="rawUuidDisplay">...</span>
+                                    <span id="rawUuidDisplay">N/A</span>
                                     <i class="fas fa-copy copy-icon" onclick="copyToClipboard('rawUuidDisplay')" title="Copy Raw UUID"></i>
                                 </div>
                             </div>
@@ -941,7 +943,12 @@
 
     <script>
     let skinViewer = null;
-    let currentRenders = {};
+    let currentRenders = {
+        body: `https://mc-heads.net/full/Steve/512`,
+        head3d: `https://mc-heads.net/head/Steve/128`,
+        avatar: `https://mc-heads.net/avatar/Steve/128`,
+        flat: `https://mc-heads.net/skin/MHF_Steve`
+    };
     let currentTarget = "Steve";
 
     // PIXEL EDITOR STATE
@@ -962,13 +969,21 @@
             canvas: canvas,
             width: 320,
             height: 360,
-            skin: "https://mc-heads.net/skin/MHF_Steve"
+            skin: currentRenders.flat
         });
 
         skinViewer.fov = 70;
         skinViewer.zoom = 0.85;
         skinViewer.autoRotate = true;
         skinViewer.autoRotateSpeed = 0.6;
+        
+        if (skinViewer.playerObject) {
+            skinViewer.playerObject.skin.backgroundOpaque = false;
+        }
+
+        // Initialize default textures/editor on start
+        loadTextureToEditor(currentRenders.flat);
+        updateGalleryAndActions(true);
 
         // Setup Editor listeners
         editorCanvas.addEventListener('mousedown', startDrawing);
@@ -980,6 +995,19 @@
         if (!skinViewer) return;
         skinViewer.autoRotate = !skinViewer.autoRotate;
         document.getElementById('btnRotate').classList.toggle('active', skinViewer.autoRotate);
+    }
+
+    function toggleAnimation() {
+        if (!skinViewer) return;
+        const btn = document.getElementById('btnAnimate');
+        if (skinViewer.animation) {
+            skinViewer.animation = null;
+            btn.classList.remove('active');
+        } else {
+            skinViewer.animation = new skinview3d.WalkingAnimation();
+            skinViewer.animation.speed = 0.8;
+            btn.classList.add('active');
+        }
     }
 
     function switchView(type) {
@@ -1022,13 +1050,10 @@
     async function fetchProfile() {
         const input = document.getElementById('searchInput').value.trim();
         const loader = document.getElementById('loader');
-        const container = document.getElementById('resultContainer');
         
         if (!input) return;
 
-        container.style.display = 'none';
         loader.style.display = 'flex';
-
         currentTarget = input;
 
         const skinTextureUrl = `https://mc-heads.net/skin/${encodeURIComponent(input)}`;
@@ -1062,7 +1087,7 @@
             console.warn("UUID lookup failed, proceeding with direct texture render.", err);
         }
 
-        // Load into 3D viewer
+        // Load into 3D viewer with correct model type configuration
         try {
             await skinViewer.loadSkin(skinTextureUrl, { model: isSlim ? "slim" : "classic" });
         } catch (e) {
@@ -1074,7 +1099,6 @@
 
         // Update UI
         loader.style.display = 'none';
-        container.style.display = 'block';
 
         document.getElementById('displayUsername').textContent = input;
 
